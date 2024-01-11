@@ -1,17 +1,43 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
 import App from './App';
-import reportWebVitals from './reportWebVitals';
+import './index.css';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalProvider } from '@azure/msal-react';
+import { msalConfig } from './auth/authConfig';
+import axios from 'axios';
+import { loginRequest } from './auth/authConfig';
+
+const pca = new PublicClientApplication(msalConfig);
+
+axios.interceptors.request.use(
+  async (response) => {
+    let msalResponse;
+    const accessTokec = sessionStorage.getItem("AccessToken");
+    const account = pca.getAllAccounts()[0];
+    if (!accessTokec) {
+      await pca.initialize();
+      msalResponse = await pca.acquireTokenSilent({
+        ...loginRequest,
+        account: account,
+      });
+    }
+    if (msalResponse && msalResponse.accessToken) {
+      sessionStorage.setItem("AccessToken", msalResponse.accessToken);
+    }
+    response.headers.Authorization = `Bearer ${accessTokec}`;
+    return response;
+  },
+  (err) => {
+    return Promise.reject(err);
+  }
+);
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <MsalProvider instance={pca}>
+      <App />
+    </MsalProvider>
   </React.StrictMode>
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
